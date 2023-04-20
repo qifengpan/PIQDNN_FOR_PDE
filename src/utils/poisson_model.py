@@ -1,7 +1,7 @@
 import mpdel
 from qiskit_machine_learning.utils.loss_functions.loss_functions import Loss
 
-class Physical_loss(Loss):
+class PhysicalLossPoisson(Loss):
     def __init__(self,N,a,f):
         self.dx = 1.0/(N-1)
         self.N  = N
@@ -72,7 +72,7 @@ class Physical_loss(Loss):
                  +0.01*Phs_loss_inner_gradient.reshape(self.N*self.N,1)#*Phs_loss_inner.reshape(self.N*self.N,1)
 
 
-class Poisson_model(Losstype,dimension,MaxIter):
+class PoissonModel(Losstype,dimension,MaxIter):
     def __init__(self,Losstype,dimension):
         self.Losstype = Losstype
         self.dim = dimension
@@ -214,7 +214,7 @@ class Poisson_model(Losstype,dimension,MaxIter):
         if(self.Losstype=="sq_error"):
             regressor = NeuralNetworkRegressor(
             neural_network=qnn_ps,
-    #     loss= Physical_loss(5,a.reshape(5,5),f.reshape(5,5)),
+    #     loss= PhysicalLossPoisson(5,a.reshape(5,5),f.reshape(5,5)),
             loss="squared_error",
             optimizer=L_BFGS_B(maxiter=10),
             callback=callback_graph,
@@ -224,7 +224,7 @@ class Poisson_model(Losstype,dimension,MaxIter):
             f = self.x_input[:,2]
             regressor = NeuralNetworkRegressor(
             neural_network=qnn_ps,
-            loss= Physical_loss(self.dim,a.reshape(self.dim,self.dim),\
+            loss= PhysicalLossPoisson(self.dim,a.reshape(self.dim,self.dim),\
                     f.reshape(self.dim,self.dim)),
         #    loss="squared_error",
             optimizer=L_BFGS_B(maxiter=self.MaxIter),
