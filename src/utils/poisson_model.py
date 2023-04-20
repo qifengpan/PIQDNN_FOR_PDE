@@ -1,5 +1,16 @@
-import mpdel
+from model import *
 from qiskit_machine_learning.utils.loss_functions.loss_functions import Loss
+from qiskit.circuit.library import ZFeatureMap, ZZFeatureMap, RealAmplitudes
+from qiskit import QuantumCircuit, Aer
+from qiskit.utils import QuantumInstance, algorithm_globals
+from qiskit.opflow import AerPauliExpectation, PauliSumOp
+from qiskit_machine_learning.neural_networks import TwoLayerQNN,EstimatorQNN
+from qiskit_machine_learning.algorithms.regressors import NeuralNetworkRegressor
+from qiskit.algorithms.optimizers import L_BFGS_B,ADAM,GradientDescent
+import pandas as pd
+import csv
+import math
+import numpy as np
 
 class PhysicalLossPoisson(Loss):
     def __init__(self,N,a,f):
@@ -72,15 +83,19 @@ class PhysicalLossPoisson(Loss):
                  +0.01*Phs_loss_inner_gradient.reshape(self.N*self.N,1)#*Phs_loss_inner.reshape(self.N*self.N,1)
 
 
-class PoissonModel(Losstype,dimension,MaxIter):
-    def __init__(self,Losstype,dimension):
-        self.Losstype = Losstype
+class Poisson_model:
+    def __init__(self,inputLosstype,dimension,MaxIter):
+        self.Losstype = inputLosstype
         self.dim = dimension
         self.MaxIter = MaxIter
+        self.x_input = []
+        self.y_output = []
+        self.__Preprocessing()
+        self.__generate_NN()
     def __Preprocessing(self):
-        path = "./outputfile/"
+        path = "../Data/Poisson/"
         res_tensor = []#list for np.array
-        for i in range(4,94,2):#file 4-92(45 files in total)
+        for i in range(4,14,2):#file 4-92(45 files in total)
             filename = 'output_'+ str(i)+ ".csv"
             with open(path+filename) as csv_file:
                 csv_reader = csv.reader(csv_file, delimiter=',')
@@ -95,7 +110,7 @@ class PoissonModel(Losstype,dimension,MaxIter):
         x_tensor = []
         y_tensor = []
         dimension_tensor = []
-        for i in range(4,94,2):
+        for i in range(4,14,2):
             N = i + 1# number of points
             a = np.ones(N*N)
             f = np.zeros(N*N)
@@ -112,43 +127,43 @@ class PoissonModel(Losstype,dimension,MaxIter):
             y_tensor.append(y_mesh.reshape(N*N))
             dimension_tensor.append(np.ones(N*N)*N*N)
             f_tensor.append(f)
-            x_position=[]
-            y_position=[]
-            a = []
-            dimension = []
-            f = []
-            for i in range(45):
-                x_position = x_position + x_tensor[i].tolist()
-                y_position = y_position + y_tensor[i].tolist()
-                a = a + a_tensor[i].tolist()
-                dimension = dimension + dimension_tensor[i].tolist()
-                f = f + f_tensor[i].tolist()
-
-            d = {"x_position":x_position,"y_position":y_position,"f":f,"a3":a,"dim":dimension}
-            input_data = pd.DataFrame(data = d)
-            y_out = {"res":res_float}
-            output_data = pd.DataFrame(data = y_out)
-            x = input_data.to_numpy()
-            y = output_data.to_numpy()
-            match(self.dim):
-                case 11:
-                    self.x_input = x[155:276,:]
-                    self.y_input = y[155:276,:]
-                case 9:
-                    self.x_input = x[74:155,:]
-                    self.y_input = y[74:155,:]
-                case 7:
-                    self.x_input = x[25:74,:]
-                    self.y_input = y[25:74,:]
-                case 5:
-                    self.x_input = x[0:25,:]
-                    self.y_input = y[0:25,:]
-                case _:
-                    print("please use dimension 4-10")
-                    exit
+        x_position=[]
+        y_position=[]
+        a = []
+        dimension = []
+        f = []
+        res_inone = []
+        for i in range(5):
+            x_position = x_position + x_tensor[i].tolist()
+            y_position = y_position + y_tensor[i].tolist()
+            a = a + a_tensor[i].tolist()
+            dimension = dimension + dimension_tensor[i].tolist()
+            f = f + f_tensor[i].tolist()
+            res_inone = res_inone + res_tensor[i].tolist()
+        res_float=[]
+        for i in res_inone:
+            res_float.append(float(i))
+        d = {"x_position":x_position,"y_position":y_position,"f":f,"a3":a,"dim":dimension}
+        input_data = pd.DataFrame(data = d)
+        y_out = {"res":res_float}
+        output_data = pd.DataFrame(data = y_out)
+        x = input_data.to_numpy()
+        y = output_data.to_numpy()
+        if self.dim == 11:
+            self.x_input = x[155:276,:]
+            self.y_output = y[155:276,:]
+        if self.dim == 9:
+            self.x_input = x[74:155,:]
+            self.y_output = y[74:155,:]
+        if self.dim == 7:
+            self.x_input = x[25:74,:]
+            self.y_output = y[25:74,:]
+        if self.dim == 5:
+            self.x_input = x[0:25,:]
+            self.y_output = y[0:25,:]
 
     def __generate_NN(self):
-        quantum_instance = QuantumInstance(Aer.get_backend("statevector_simulator"), shots=1024)
+        #quantum_instance = QuantumInstance(Aer.get_backend("statevector_simulator"), shots=1024)
 
 
         feature_map = ZFeatureMap(5,reps=1)
@@ -209,22 +224,29 @@ class PoissonModel(Losstype,dimension,MaxIter):
         )
 
     def generate_Regressor(self):
-        self.__Preprocessing
-        self.__generate_NN()
+        objective_func_vals = []
+        def callback_graph(weights, obj_func_eval):
+            clear_output(wait=True)
+            objective_func_vals.append(obj_func_eval)
+            plt.title("Objective function value against iteration")
+            plt.xlabel("Iteration")
+            plt.ylabel("Objective function value")
+            plt.plot(range(len(objective_func_vals)), objective_func_vals)
+            plt.show()
         if(self.Losstype=="sq_error"):
             regressor = NeuralNetworkRegressor(
-            neural_network=qnn_ps,
-    #     loss= PhysicalLossPoisson(5,a.reshape(5,5),f.reshape(5,5)),
+            neural_network=self.qnn_ps,
+    #     loss= Physical_loss(5,a.reshape(5,5),f.reshape(5,5)),
             loss="squared_error",
-            optimizer=L_BFGS_B(maxiter=10),
+            optimizer=L_BFGS_B(maxiter=self.MaxIter),
             callback=callback_graph,
         )
         if(self.Losstype =="PI_error"):
             a = self.x_input[:,3]
             f = self.x_input[:,2]
             regressor = NeuralNetworkRegressor(
-            neural_network=qnn_ps,
-            loss= PhysicalLossPoisson(self.dim,a.reshape(self.dim,self.dim),\
+            neural_network=self.qnn_ps,
+            loss= Physical_loss(self.dim,a.reshape(self.dim,self.dim),\
                     f.reshape(self.dim,self.dim)),
         #    loss="squared_error",
             optimizer=L_BFGS_B(maxiter=self.MaxIter),
