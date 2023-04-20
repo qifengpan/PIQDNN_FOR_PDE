@@ -1,8 +1,10 @@
 import numpy as np
-import torch.nn.parameter import Parameter
+from torch.nn.parameter import Parameter
 from IPython.display import clear_output
 from qiskit.circuit import ParameterVector
 import matplotlib.pyplot as plt
+from qiskit import QuantumCircuit, transpile, Aer, IBMQ
+
 
 def conv_circuit(params):
     target = QuantumCircuit(2)
@@ -60,6 +62,7 @@ def pool_layer(sources, sinks, param_prefix):
     qc.append(qc_inst, range(num_qubits))
     return qc
 def callback_graph(weights, obj_func_eval):
+    #objective_func_vals= []
     clear_output(wait=True)
     objective_func_vals.append(obj_func_eval)
     plt.title("Objective function value against iteration")
@@ -67,4 +70,3 @@ def callback_graph(weights, obj_func_eval):
     plt.ylabel("Objective function value")
     plt.plot(range(len(objective_func_vals)), objective_func_vals)
     plt.show()
-
