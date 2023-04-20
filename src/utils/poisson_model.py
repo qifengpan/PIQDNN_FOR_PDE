@@ -246,7 +246,7 @@ class Poisson_model:
             f = self.x_input[:,2]
             regressor = NeuralNetworkRegressor(
             neural_network=self.qnn_ps,
-            loss= Physical_loss(self.dim,a.reshape(self.dim,self.dim),\
+            loss= PhysicalLossPoisson(self.dim,a.reshape(self.dim,self.dim),\
                     f.reshape(self.dim,self.dim)),
         #    loss="squared_error",
             optimizer=L_BFGS_B(maxiter=self.MaxIter),
