@@ -13,6 +13,8 @@ The training dataset can be found in: data/burger, data/poisson
 
 The results of some of the experiments can be found in: /results
 
+The codes used to generate data for Poisson equation can be found more detail in: https://github.com/qifengpan/2D-ShwarzSolver-for-Poisson
+
 
 ## How to run it
 The configuaration for the environment can be found in requirement.txt, the docker image for this implementation is in preparation, could be provided upon request.
