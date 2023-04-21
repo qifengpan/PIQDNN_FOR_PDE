@@ -21,10 +21,10 @@ The configuaration for the environment can be found in requirement.txt, the dock
 run the training:
 
      running the Poisson model:
-          python3 src/main.py Poisson
+          python3 src/main.py --problem-type Poisson
      
      running the Burger model:
-          python3 src/main.py Burger
+          python3 src/main.py --problem-type Burger
      
 The model detail can be modified within the main.py file.
 
