@@ -12,9 +12,13 @@
 
 ## Result of the experiment: 2D Poisson Equation
 
-#### 
+#### The training loss of QDNN without physics-informed loss
 
-![alt-text-1](Non_PINN.png "title-1") ![alt-text-2](PINN.png "title-2")
+![alt-text-1](Non_PINN.png "title-1") 
+
+#### The training loss of physics-informed QDNN
+
+![alt-text-2](PINN.png "title-2")
 
 #### The comparison between predicted result by PIQDNN and result given by analytical solution on the dataset of Poisson equation
 ![The predicted result and real value](./res_poisson.PNG)
