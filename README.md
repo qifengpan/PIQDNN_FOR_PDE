@@ -8,7 +8,9 @@ The structure of the PIQDNN is illustrated as follows:
 
 ## Explanation
 The source code for building the model and training, and the illustration of the model can be found unde: /src. 
+
 The training dataset can be found in: data/burger, data/poisson
+
 The results of some of the experiments can be found in: /results
 
 
