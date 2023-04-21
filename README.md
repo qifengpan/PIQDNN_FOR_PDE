@@ -18,11 +18,11 @@ The results of some of the experiments can be found in: /results
 The configuaration for the environment can be found in requirement.txt, the docker image for this implementation is in preparation, could be provided upon request.
 run the training:
 
-running the Poisson model:
-     python3 src/main.py Poisson
+     running the Poisson model:
+          python3 src/main.py Poisson
      
-running the Burger model:
-     python3 src/main.py Burger
+     running the Burger model:
+          python3 src/main.py Burger
      
 The model detail can be modified within the main.py file.
 
