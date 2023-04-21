@@ -16,7 +16,7 @@ The results of some of the experiments can be found in: /results
 The configuaration for the environment can be found in requirement.txt, the docker image for this implementation is in preparation, could be provided upon request.
 run the training:
 
-python src/main.py
+  python src/main.py
 
 
 
