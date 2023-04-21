@@ -7,7 +7,7 @@
 
 
 #### The comparison between predicted result by PIQDNN and result given by analytical solution on the dataset of Burgers equation
-![The predicted result and real value in some random data point](./res_burger.png)
+![The predicted result and real value](./res_burger.PNG)
 
 #### The comparison between predicted result by PIQDNN and result given by analytical solution on the dataset of Poisson equation
-![The predicted result and real value in some random data point](./res_poisson.png)
+![The predicted result and real value](./res_poisson.PNG)
