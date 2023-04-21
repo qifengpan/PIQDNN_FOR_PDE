@@ -5,9 +5,16 @@ from burger_model import BurgerModel
 from model import callback_graph
 import matplotlib.pyplot as plt
 import os
+import argparse
+
+parser = argparse.ArgumentParser()
+
+parser.add_argument('--problem-type', dest='problem_type', help='Please clarify which problem you want to solve: "Poisson" or "Burgers"')
+args = parser.parse_args()
+problem_type = args.problem_type
+
 
 def main():
-    problem_type = sys.argv[1]
     if (problem_type =="Poisson"):
         PoissonNN5_5 = Poisson_model("sq_error",5,10)
         Regressor5_5_sq_error = PoissonNN5_5.generate_Regressor()
