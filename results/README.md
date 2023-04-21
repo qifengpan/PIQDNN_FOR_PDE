@@ -9,5 +9,8 @@
 #### The comparison between predicted result by PIQDNN and result given by analytical solution on the dataset of Burgers equation
 ![The predicted result and real value](./res_burger.PNG)
 
+
+## Result of the experiment: 2D Poisson Equation
+
 #### The comparison between predicted result by PIQDNN and result given by analytical solution on the dataset of Poisson equation
 ![The predicted result and real value](./res_poisson.PNG)
