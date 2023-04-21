@@ -1,6 +1,8 @@
 # PIQDNN_FOR_PDE
 
-This is the AD for the paper: Physics-informed Quantum Deep Neural Network for Solving PDEs.
+This is the AD for the paper: Physics-informed Quantum Deep Neural Network for Solving PDEs. The structure of the PIQDNN is illustrated as follows:
+
+![image info](./src/PIDNNModel.png)
 
 ## Explanation
 The source code for building the model and training, and the illustration of the model can be found unde: /src. 
