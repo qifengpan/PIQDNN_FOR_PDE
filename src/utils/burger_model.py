@@ -22,21 +22,83 @@ import math
 
 #@qifeng: add physical loss part here.
 class PhysicalLossBurger(Loss):
+    def __init__(self,m,mu,stept,stepx):
+        self.m  = m
+        self.mu = mu
+        self.x  = stepx
+        self.t  = stept
+    def __second_order_central(self,xb,x,xa,step):
+        return (xb+xa-2*x)/step**2
+    def __first_order_central(self,xb,xa,step):
+        return (xa-xb)/(2*(step))
+    def __first_order_upwind(self,xb,x,step):
+        return (x-xb)/step
+    def __phy_Inner_loss(self,u,ubt,ubx,uax):
+        # loss = a_x*u_x + a*u_xx + a_y*u_y + a*u_yy + f
+        # abx means a(x-h), aax ,means a(x+h), analogous for y
+        u_t  = self.__first_order_upwind(u,ubt,self.stept)
+        u_x  = self.__first_order_central(ubx,uax,self.stepx)
+        u_xx = self.__second_order_central(ubx,u,uax,self.stepx)
 
+        return (u_t -self.m*u*u_x -self.mu*u_xx) 
+    def evaluate(self, predict: np.ndarray, target: np.ndarray) -> np.ndarray:
+        # evaluate L2 Loss first |u-u_predict|_2
+        self._validate_shapes(predict, target)
+        if len(predict.shape) <= 1:
+            L2_loss = (predict - target)**2
+        else:
+            L2_loss = np.linalg.norm(predict - target, ord = 1,axis=tuple(range(1, len(predict.shape))))**2
+        # reshape to the mesh
+        u = predict.reshape(self.N,self.N)
+        Phy_loss_inner = np.zeros([self.N,self.N])
+        # evaluate physical loss for inner and boundary area
+        for i in range(self.N):
+            for j in range(self.N):
+                if(i == self.N-1 or j == self.N -1 or i ==0 or j == 0):
+                    pass
+                else:
+                    Phy_loss_inner[i,j] = self.__phy_Inner_loss(u[i,j],u[i-1,j],u[i,j-1],u[i,j+1])
+        return 0.999*L2_loss + 0.001*Phy_loss_inner.reshape(self.N*self.N,1)
+    def gradient(self, predict: np.ndarray, target: np.ndarray) -> np.ndarray:
+        # For a given point, it has value u, with loss u_loss, the gradient is define as D(u_loss)/D(u) if we consider the
+        # loss is a function of the value of current posint. 
+        # For L1 norm, it is easy to derive that gradient is sign(u_predict-target).
+        # For physical loss, specially for inner loss, analytical solution is not easy to derive, then we calculate 
+        # the gradient via:
+        # (u_loss(u)-u_loss(u+delta*u))/delta*u
+        self._validate_shapes(predict, target)
+        u = predict.reshape(self.N,self.N)
+        Phs_loss_inner_gradient = np.zeros([self.N,self.N])
+        delta = 0.01
+        for i in range(self.N):
+            for j in range(self.N):
+                if(i == self.N-1 or j == self.N -1 or i ==0 or j == 0):
+                    pass
+                else:
+                    orgi = self.__phy_Inner_loss(u[i,j],u[i-1,j],u[i,j-1],u[i,j+1])
+                    disturbed = self.__phy_Inner_loss(u[i,j]*(1+delta),u[i-1,j],u[i,j-1],u[i,j+1])
+                    Phs_loss_inner_gradient[i,j] = (disturbed - orgi) / (delta*u[i,j])
+        return 1 * 0.999*(predict - target) + 0.001*Phs_loss_inner_gradient.reshape(self.N*self.N,1)#*Phs_loss_inner.reshape(self.N*self.N,1)
 
-
-class BurgerModel(Losstype,dimension,MaxIter):
-    def __init__(self,Losstype,dimension):
+class BurgerModel():
+    def __init__(self,Losstype,dimension,MaxIter,m,mu):
         self.Losstype = Losstype
         self.dim = dimension
         self.MaxIter = MaxIter
+        self.x_input = []
+        self.y_output = []
+        self.m = m
+        self.mu = mu
+        self.__Preprocessing()
+        self.__generate_NN()
     def __preprocessing(self):
         number_of_samples = 2000
         noise_level = 0.1
         x= np.load('dataset/burgers_x'+'_'+str(number_of_samples)+'.npy')
         t= np.load('dataset/burgers_t'+'_'+str(number_of_samples)+'.npy')
         u= np.array(np.load('dataset/burgers_u'+'_'+str(number_of_samples)+'.npy'),dtype=np.float32).reshape(len(x),len(t))
-
+        self.stepX = x[-1]-x[-2]
+        self.stepT = t[-1]-t[-2]
         noise_l = noise_level*np.std(u)*np.random.randn(u.shape[0],u.shape[1])
         u = u + noise_l
 
@@ -73,7 +135,7 @@ class BurgerModel(Losstype,dimension,MaxIter):
 
 
     def __generate_NN(self):
-        quantum_instance = QuantumInstance(Aer.get_backend("statevector_simulator"), shots=1024)
+        #quantum_instance = QuantumInstance(Aer.get_backend("statevector_simulator"), shots=1024)
 
 
         feature_map = ZFeatureMap(2)
@@ -104,7 +166,7 @@ class BurgerModel(Losstype,dimension,MaxIter):
         # specify the observable
         observable = PauliSumOp.from_list([("Z" * 2, 1)])
 
-        self.qnn = TwoLayerQNN(
+        self.qnn =EstimatorQNN(
             num_qubits=2,
             feature_map=feature_map,
             ansatz=ansatz,
@@ -114,25 +176,18 @@ class BurgerModel(Losstype,dimension,MaxIter):
         )
 
     def generate_Regressor(self):
-        self.__preprocessing()
-        self.__generate_NN()
         if(self.Losstype=="sq_error"):
             regressor = NeuralNetworkRegressor(
-            neural_network=qnn_ps,
+            neural_network=self.qnn,
             loss="squared_error",
             optimizer=L_BFGS_B(maxiter=10),
             callback=callback_graph,
         )
             
-        #TODO: @qifeng
-        ##############    
         if(self.Losstype =="PI_error"):
-            a = self.x_input[:,3]
-            f = self.x_input[:,2]
             regressor = NeuralNetworkRegressor(
-            neural_network=qnn_ps,
-            loss= Physical_loss(self.dim,a.reshape(self.dim,self.dim),\
-                    f.reshape(self.dim,self.dim)),
+            neural_network=self.qnn,
+            loss= PhysicalLossBurger(self.m,self.mu,self.stepX,self.stepT),
         #    loss="squared_error",
             optimizer=L_BFGS_B(maxiter=self.MaxIter),
             callback=callback_graph,
