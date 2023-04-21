@@ -1,8 +1,8 @@
-import model
+from model import *
 from qiskit import QuantumCircuit, transpile, Aer, IBMQ
 from qiskit.tools.jupyter import *
 from qiskit.visualization import *
-from ibm_quantum_widgets import *
+#from ibm_quantum_widgets import *
 from qiskit.providers.aer import QasmSimulator
 from qiskit import QuantumCircuit, Aer
 from qiskit.algorithms.optimizers import COBYLA
@@ -11,22 +11,28 @@ from qiskit.circuit.library import ZFeatureMap, ZZFeatureMap, RealAmplitudes
 from qiskit.opflow import AerPauliExpectation, PauliSumOp
 from qiskit.utils import QuantumInstance, algorithm_globals
 from qiskit_machine_learning.algorithms.regressors import NeuralNetworkRegressor
-from qiskit_machine_learning.neural_networks import TwoLayerQNN
+from qiskit_machine_learning.neural_networks import TwoLayerQNN, EstimatorQNN
 from qiskit.algorithms.optimizers import L_BFGS_B,ADAM,GradientDescent
 from qiskit.circuit import Parameter
 from qiskit_machine_learning.utils.loss_functions.loss_functions import Loss
 
 import matplotlib.pyplot as plt
+import numpy as np
 import math
 
 
 #@qifeng: add physical loss part here.
 class PhysicalLossBurger(Loss):
-    def __init__(self,m,mu,stept,stepx):
+    def __init__(self,m,mu,stept,stepx,lenx,lent,xmax,umax,tmax):
         self.m  = m
         self.mu = mu
-        self.x  = stepx
-        self.t  = stept
+        self.stepx  = stepx
+        self.stept  = stept
+        self.lenx= lenx
+        self.lent= lent
+        self.xmax= xmax
+        self.tmax= tmax
+        self.umax= umax
     def __second_order_central(self,xb,x,xa,step):
         return (xb+xa-2*x)/step**2
     def __first_order_central(self,xb,xa,step):
@@ -40,7 +46,7 @@ class PhysicalLossBurger(Loss):
         u_x  = self.__first_order_central(ubx,uax,self.stepx)
         u_xx = self.__second_order_central(ubx,u,uax,self.stepx)
 
-        return (u_t -self.m*u*u_x -self.mu*u_xx) 
+        return (self.tmax/self.umax* u_t + self.tmax/self.umax**2*self.m*u*u_x - self.xmax**2/self.umax * self.mu*u_xx) 
     def evaluate(self, predict: np.ndarray, target: np.ndarray) -> np.ndarray:
         # evaluate L2 Loss first |u-u_predict|_2
         self._validate_shapes(predict, target)
@@ -49,16 +55,16 @@ class PhysicalLossBurger(Loss):
         else:
             L2_loss = np.linalg.norm(predict - target, ord = 1,axis=tuple(range(1, len(predict.shape))))**2
         # reshape to the mesh
-        u = predict.reshape(self.N,self.N)
-        Phy_loss_inner = np.zeros([self.N,self.N])
+        u = predict.reshape(self.lenx,self.lent)
+        Phy_loss_inner = np.zeros([self.lenx,self.lent])
         # evaluate physical loss for inner and boundary area
-        for i in range(self.N):
-            for j in range(self.N):
-                if(i == self.N-1 or j == self.N -1 or i ==0 or j == 0):
+        for i in range(self.lenx):
+            for j in range(self.lent):
+                if(i == self.lenx-1 or j == self.lent -1 or i ==0 or j == 0):
                     pass
                 else:
                     Phy_loss_inner[i,j] = self.__phy_Inner_loss(u[i,j],u[i-1,j],u[i,j-1],u[i,j+1])
-        return 0.999*L2_loss + 0.001*Phy_loss_inner.reshape(self.N*self.N,1)
+        return 0.99999*L2_loss + 0.00001*Phy_loss_inner.reshape(-1,1)
     def gradient(self, predict: np.ndarray, target: np.ndarray) -> np.ndarray:
         # For a given point, it has value u, with loss u_loss, the gradient is define as D(u_loss)/D(u) if we consider the
         # loss is a function of the value of current posint. 
@@ -67,18 +73,18 @@ class PhysicalLossBurger(Loss):
         # the gradient via:
         # (u_loss(u)-u_loss(u+delta*u))/delta*u
         self._validate_shapes(predict, target)
-        u = predict.reshape(self.N,self.N)
-        Phs_loss_inner_gradient = np.zeros([self.N,self.N])
+        u = predict.reshape(self.lenx,self.lent)
+        Phs_loss_inner_gradient = np.zeros([self.lenx,self.lent])
         delta = 0.01
-        for i in range(self.N):
-            for j in range(self.N):
-                if(i == self.N-1 or j == self.N -1 or i ==0 or j == 0):
+        for i in range(self.lenx):
+            for j in range(self.lent):
+                if(i == self.lenx-1 or j == self.lent -1 or i ==0 or j == 0):
                     pass
                 else:
                     orgi = self.__phy_Inner_loss(u[i,j],u[i-1,j],u[i,j-1],u[i,j+1])
                     disturbed = self.__phy_Inner_loss(u[i,j]*(1+delta),u[i-1,j],u[i,j-1],u[i,j+1])
                     Phs_loss_inner_gradient[i,j] = (disturbed - orgi) / (delta*u[i,j])
-        return 1 * 0.999*(predict - target) + 0.001*Phs_loss_inner_gradient.reshape(self.N*self.N,1)#*Phs_loss_inner.reshape(self.N*self.N,1)
+        return 1 * 0.99999*(predict - target) + 0.00001*Phs_loss_inner_gradient.reshape(-1,1)#*Phs_loss_inner.reshape(self.N*self.N,1)
 
 class BurgerModel():
     def __init__(self,Losstype,dimension,MaxIter,m,mu):
@@ -89,49 +95,56 @@ class BurgerModel():
         self.y_output = []
         self.m = m
         self.mu = mu
-        self.__Preprocessing()
+        self.__preprocessing()
         self.__generate_NN()
     def __preprocessing(self):
         number_of_samples = 2000
         noise_level = 0.1
-        x= np.load('dataset/burgers_x'+'_'+str(number_of_samples)+'.npy')
-        t= np.load('dataset/burgers_t'+'_'+str(number_of_samples)+'.npy')
-        u= np.array(np.load('dataset/burgers_u'+'_'+str(number_of_samples)+'.npy'),dtype=np.float32).reshape(len(x),len(t))
+        path = "../Data/Burgers/"
+        x= np.load(path + 'burgers_x'+'_'+str(number_of_samples)+'.npy')
+        t= np.load(path + 'burgers_t'+'_'+str(number_of_samples)+'.npy')
+        u= np.array(np.load(path + 'burgers_u'+'_'+str(number_of_samples)+'.npy'),dtype=np.float32).reshape(len(x),len(t))
         self.stepX = x[-1]-x[-2]
         self.stepT = t[-1]-t[-2]
-        noise_l = noise_level*np.std(u)*np.random.randn(u.shape[0],u.shape[1])
-        u = u + noise_l
-
+#        noise_l = noise_level*np.std(u)*np.random.randn(u.shape[0],u.shape[1])
+#        u = u + noise_l
+        self.lenx = len(x)
+        self.lent = len(t)
         x_grid,  t_grid = np.meshgrid(x,  t, indexing="ij")
+        xs = x_grid.reshape(-1,1)
+        ts = t_grid.reshape(-1,1)
 
+        self.xmax = x.max()
+        self.umax = u.max()
+        self.tmax = t.max()
 
-        idx = resample(np.arange(u1_noisy.ravel().shape[0]),replace=False,random_state=44,n_samples=number_of_samples)
-
-        u1_noisy_shuffled = (u1_noisy.ravel())[idx]
-        xs = ((x_grid.ravel())[idx]).reshape(-1,1)
-        ts = ((t_grid).ravel()[idx]).reshape(-1,1)
-
-        scale_from_outputs = []
+#        idx = resample(np.arange(u1_noisy.ravel().shape[0]),replace=False,random_state=44,n_samples=number_of_samples)
+#
+#        u1_noisy_shuffled = (u1_noisy.ravel())[idx]
+#        xs = ((x_grid.ravel())[idx]).reshape(-1,1)
+#        ts = ((t_grid).ravel()[idx]).reshape(-1,1)
+#
+#        scale_from_outputs = []
         u_d = []
-
-        # scaling and subsampling
-        u_sampled = u1_noisy_shuffled.reshape(-1,1)
-        u_max = u_sampled.max()
-        scale_from_outputs.append(u_max)
-        u_d.append(u_sampled/u_max)   
+#
+#        # scaling and subsampling
+#        u_sampled = u1_noisy_shuffled.reshape(-1,1)
+#        u_max = u_sampled.max()
+#        scale_from_outputs.append(u_max)
+        u_d.append(u/u.max())   
 
 
         # Data Normalization
         X_data = np.concatenate([ts/t.max(),xs/x.max()],axis=1)
         y_data = np.concatenate(u_d,axis=0)
 
-        X_train, X_test, y_train, y_test = train_test_split(X_data, y_data, test_size=0.2, random_state=42)
+#        X_train, X_test, y_train, y_test = train_test_split(X_data, y_data, test_size=0.2, random_state=42)
 
-        self.x_input = X_train
-        self.y_input = y_train
+        self.x_input = X_data
+        self.y_input = y_data
 
-        self.x_test = X_test
-        self.y_test = y_test
+#        self.x_test = X_test
+#        self.y_test = y_test
 
 
     def __generate_NN(self):
@@ -167,12 +180,10 @@ class BurgerModel():
         observable = PauliSumOp.from_list([("Z" * 2, 1)])
 
         self.qnn =EstimatorQNN(
-            num_qubits=2,
-            feature_map=feature_map,
-            ansatz=ansatz,
-            observable=observable,
-            exp_val=AerPauliExpectation(),
-            quantum_instance=quantum_instance,
+            circuit=circuit.decompose(),
+            observables=observable,
+            input_params=feature_map.parameters,
+            weight_params=ansatz.parameters,
         )
 
     def generate_Regressor(self):
@@ -180,14 +191,15 @@ class BurgerModel():
             regressor = NeuralNetworkRegressor(
             neural_network=self.qnn,
             loss="squared_error",
-            optimizer=L_BFGS_B(maxiter=10),
+            optimizer=L_BFGS_B(maxiter=self.MaxIter),
             callback=callback_graph,
         )
             
         if(self.Losstype =="PI_error"):
             regressor = NeuralNetworkRegressor(
             neural_network=self.qnn,
-            loss= PhysicalLossBurger(self.m,self.mu,self.stepX,self.stepT),
+            loss= PhysicalLossBurger(self.m,self.mu,self.stepX,self.stepT,self.lenx,self.lent,\
+                                     self.xmax,self.umax,self.tmax),
         #    loss="squared_error",
             optimizer=L_BFGS_B(maxiter=self.MaxIter),
             callback=callback_graph,
