@@ -62,7 +62,7 @@ def pool_layer(sources, sinks, param_prefix):
     qc.append(qc_inst, range(num_qubits))
     return qc
 def callback_graph(weights, obj_func_eval):
-    #objective_func_vals= []
+    objective_func_vals= []
     clear_output(wait=True)
     objective_func_vals.append(obj_func_eval)
     plt.title("Objective function value against iteration")
