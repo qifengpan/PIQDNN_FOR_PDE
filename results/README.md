@@ -1,4 +1,4 @@
-# Here list the results of some experiments:
+# Results of some experiments:
 
 ## Result of the experiment: 1D Burger's Equation
 
