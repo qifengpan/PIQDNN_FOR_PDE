@@ -14,7 +14,7 @@
 
 #### 
 
-![alt-text-1](Non_PINN (1).png "title-1") ![alt-text-2](PINN (2).png "title-2")
+![alt-text-1](Non_PINN.png "title-1") ![alt-text-2](PINN.png "title-2")
 
 #### The comparison between predicted result by PIQDNN and result given by analytical solution on the dataset of Poisson equation
 ![The predicted result and real value](./res_poisson.PNG)
