@@ -9,7 +9,7 @@ import argparse
 
 parser = argparse.ArgumentParser()
 
-parser.add_argument('--problem-type', dest='problem_type', help='Please clarify which problem you want to solve: "Poisson" or "Burgers"')
+parser.add_argument('--problem-type', dest='problem_type', help='Please clarify which problem you want to solve: "Poisson" or "Burger"')
 args = parser.parse_args()
 problem_type = args.problem_type
 
